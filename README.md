@@ -49,4 +49,23 @@ A client must try for 1 second to connect to the server. If a DFS server does no
 Your DFS servers must handle multiple connections and service multiple DFCs concurrently.
 
 ## Compile Program
+### Client
 gcc dfc.c -o dfc -lssl -lcrypto
+
+### Server
+gcc dfs.c -o dfs
+
+## Run Program
+### Client
+./dfc get foo3
+./dfc put foo3
+./dfc list
+
+### Server
+./dfs ./dfs1 10010
+./dfs ./dfs2 10011
+./dfs ./dfs3 10012
+./dfs ./dfs4 10013
+
+
+
