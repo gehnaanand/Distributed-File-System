@@ -58,13 +58,18 @@ gcc dfs.c -o dfs
 ## Run Program
 ### Client
 ./dfc get foo3
+
 ./dfc put foo3
+
 ./dfc list
 
 ### Server
-./dfs ./dfs1 10010
+./dfs ./dfs1 10010 
+
 ./dfs ./dfs2 10011
+
 ./dfs ./dfs3 10012
+
 ./dfs ./dfs4 10013
 
 
