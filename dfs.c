@@ -15,9 +15,26 @@
 #define MAX_CHUNK_SIZE 1024
 #define MAX_PATH_LEN 512
 
-void receive_file_chunk(int port, int client_socket, const char *filename) {
+void check_and_create_directory(const char *dir_name) {
+    // Check if the directory exists
+    struct stat st;
+    if (stat(dir_name, &st) == -1) {
+        // Directory does not exist, create it
+        if (mkdir(dir_name, 0777) == -1) {
+            perror("mkdir");
+            return; 
+        }
+        printf("Directory created successfully: %s\n", dir_name);
+    } else {
+        printf("Directory already exists: %s\n", dir_name);
+    }
+}
+
+void receive_file_chunk(const char *server_name, int client_socket, const char *filename) {
     char path[MAX_PATH_LEN];
-    const char *folder = "server_folder";
+    const char *folder = server_name;
+
+    check_and_create_directory(server_name);
 
     char buffer[MAX_CHUNK_SIZE];
     ssize_t bytes_received;
@@ -40,12 +57,12 @@ void receive_file_chunk(int port, int client_socket, const char *filename) {
         if (strchr(filename, '.') != NULL) {
             // Split filename into base and extension
             sscanf(filename, "%[^.].%s", base, ext);
-            snprintf(path, MAX_PATH_LEN, "%s_%d/%s_%d.%s", folder, port, base, chunk1, ext);
+            snprintf(path, MAX_PATH_LEN, "%s/%s_%d.%s", server_name, base, chunk1, ext);
         } else {
             // Filename has no extension, so copy the whole filename to base
             strncpy(base, filename, MAX_PATH_LEN);
             base[MAX_PATH_LEN - 1] = '\0';  
-            snprintf(path, MAX_PATH_LEN, "%s_%d/%s_%d", folder, port, base, chunk1);
+            snprintf(path, MAX_PATH_LEN, "%s/%s_%d", server_name, base, chunk1);
         }
 
         printf("Store in filename - %s\n", path);
@@ -118,9 +135,11 @@ int extract_chunk_number(const char *filename) {
     }
 }
 
-void send_file_chunk(int port, int client_socket, const char *filename) {
+void send_file_chunk(const char *server_name, int client_socket, const char *filename) {
     char path[MAX_PATH_LEN];
-    snprintf(path, MAX_PATH_LEN, "server_folder_%d", port);
+    snprintf(path, MAX_PATH_LEN, "%s", server_name);
+    check_and_create_directory(server_name);
+
     DIR *dir = opendir(path);
     printf("Path - %s\n", path);
     if (dir == NULL) {
@@ -183,15 +202,15 @@ void send_file_chunk(int port, int client_socket, const char *filename) {
             }
         }
     }
-
     closedir(dir);
 }
 
-void list_all_files(int port, int client_socket) {
-    char path[MAX_PATH_LEN];
-    snprintf(path, MAX_PATH_LEN, "server_folder_%d", port);
-    DIR *dir = opendir(path);
-    printf("Path - %s\n", path);
+void list_all_files(const char *server_name, int client_socket) {
+    const char *dir_name = server_name;
+    check_and_create_directory(server_name);
+
+    DIR *dir = opendir(dir_name);
+    printf("Path - %s\n", dir_name);
     if (dir == NULL) {
         perror("Error opening directory");
         return;
@@ -216,7 +235,7 @@ void list_all_files(int port, int client_socket) {
     close(client_socket);
 }
 
-void handle_client(int client_socket, int port) {
+void handle_client(int client_socket, const char *server_name) {
     ssize_t bytes_received;
 
     uint32_t command_len_net;
@@ -230,17 +249,17 @@ void handle_client(int client_socket, int port) {
         printf("Command - %s\n", command);
 
         if (strstr(command, "list") == command) {
-            list_all_files(port, client_socket);
+            list_all_files(server_name, client_socket);
         } else if (strstr(command, "get ") == command) {
             // Extract filename from command (format: "get filename")
             const char *filename = command + 4;
 
-            send_file_chunk(port, client_socket, filename);
+            send_file_chunk(server_name, client_socket, filename);
         } else if (strstr(command, "put ") == command) {
             // Extract filename from command (format: "put filename")
             const char *filename = command + 4;
 
-            receive_file_chunk(port, client_socket, filename);
+            receive_file_chunk(server_name, client_socket, filename);
             printf("Received file chunk for '%s'\n", filename);
         } else {
             printf("Unknown command received - %s\n", command);
@@ -303,7 +322,7 @@ int main(int argc, char *argv[]) {
             // Child process
             close(server_socket);
             printf("Handle client\n");
-            handle_client(client_socket, port);
+            handle_client(client_socket, server_name);
             exit(EXIT_SUCCESS);
         } else if (pid > 0) {
             // Parent process

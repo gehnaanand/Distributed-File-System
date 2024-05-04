@@ -47,3 +47,6 @@ Each DFS server should have its own directory named dfs1, dfs2, dfs3, or dfs4, u
 A client must try for 1 second to connect to the server. If a DFS server does not respond in 1 second, we consider that server is not available.
 
 Your DFS servers must handle multiple connections and service multiple DFCs concurrently.
+
+## Compile Program
+gcc dfc.c -o dfc -lssl -lcrypto

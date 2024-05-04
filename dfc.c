@@ -114,7 +114,6 @@ int send_data_in_chunks(int client_socket, const char *data, int data_size) {
 
     // Loop through the data and send in chunks of MAX_CHUNK_SIZE bytes
     for (int offset = 0; offset < data_size; offset += MAX_CHUNK_SIZE) {
-        // Calculate bytes to send in this chunk
         bytes_to_send = (data_size - offset < MAX_CHUNK_SIZE) ? (data_size - offset) : MAX_CHUNK_SIZE;
 
         // Send the chunk of data
@@ -138,6 +137,21 @@ int send_data_in_chunks(int client_socket, const char *data, int data_size) {
     return total_bytes_sent;
 }
 
+void calculate_chunks(int file_size, int num_chunks, int *chunk_sizes) {
+    int base_size = file_size / num_chunks;  // Size of each base chunk
+    int extra_bytes = file_size % num_chunks; // Remaining bytes to distribute
+
+    for (int i = 0; i < num_chunks; i++) {
+        if (i < extra_bytes) {
+            // Add one extra byte to the chunk size for the first 'extra_bytes' chunks
+            chunk_sizes[i] = base_size + 1;
+        } else {
+            // All subsequent chunks have the base size
+            chunk_sizes[i] = base_size;
+        }
+    }
+}
+
 void put_file(const char *filename) {
     FILE *file = fopen(filename, "rb");
     if (file == NULL) {
@@ -149,14 +163,23 @@ void put_file(const char *filename) {
     long file_size = ftell(file);
     rewind(file);
 
-    int chunk_size = (file_size + NUM_DFS_SERVERS - 1) / NUM_DFS_SERVERS; 
+    int chunk_sizes[NUM_DFS_SERVERS];
+    calculate_chunks(file_size, NUM_DFS_SERVERS, chunk_sizes);
+
     printf("File size - %ld\n", file_size);
-    printf("Chunk size - %d\n", chunk_size);
-    char buffer[chunk_size];
+    printf("Chunk sizes:\n");
+    for (int i = 0; i < NUM_DFS_SERVERS; i++) {
+        printf("Chunk %d: %d bytes\n", i + 1, chunk_sizes[i]);
+    }
+    
     int server_index = 0;
     int remaining_bytes = file_size;
 
-    char chunks[NUM_DFS_SERVERS][chunk_size];
+    char **chunks = malloc(NUM_DFS_SERVERS * sizeof(char *));
+    if (chunks == NULL) {
+        perror("Error allocating memory for chunks");
+        exit(EXIT_FAILURE);
+    }
     int chunk_index = 0;
 
     char hash_result[MD5_DIGEST_LENGTH * 2 + 1];
@@ -166,13 +189,15 @@ void put_file(const char *filename) {
     // Convert the first two bytes of the hash to an integer for modulus calculation
     sscanf(hash_result, "%2x", &x);
     
-    memset(buffer, 0, sizeof(buffer));
     while (remaining_bytes > 0) {
-        int bytes_to_read = chunk_size;
+        int bytes_to_read = chunk_sizes[chunk_index];
+        chunks[chunk_index] = malloc((bytes_to_read + 1) * sizeof(char));
+        char buffer[bytes_to_read];
         fread(buffer, 1, bytes_to_read, file);
         printf("Chunk data size - %ld \n", sizeof(buffer));
         // printf("Buffer - %s\n", buffer);
         memcpy(chunks[chunk_index], buffer, bytes_to_read);
+        chunks[chunk_index][bytes_to_read] = '\0';
         memset(buffer, 0, sizeof(buffer));
 
         remaining_bytes -= bytes_to_read;
@@ -214,7 +239,7 @@ void put_file(const char *filename) {
             }
 
             // Send Chunk size
-            int chunk_size = (int)sizeof(chunks[chunk_number-1]);
+            int chunk_size = chunk_sizes[chunk_number-1];
             int chunk_size_net = htonl(chunk_size);
             printf("Sending chunk size - %d\n", ntohl(chunk_size_net));
             if (send(client_socket, &chunk_size_net, sizeof(chunk_size_net), 0) != sizeof(chunk_size_net)) {
@@ -251,6 +276,11 @@ void put_file(const char *filename) {
     } 
 
     fclose(file);
+
+    for (int i = 0; i < NUM_DFS_SERVERS; i++) {
+        free(chunks[i]);
+    }
+    free(chunks);
 }
 
 void get_file(const char *filename) {
@@ -315,6 +345,9 @@ void get_file(const char *filename) {
                     break; 
                 }
                 total_bytes_received += bytes_received;
+                if (total_bytes_received < file_size) {
+                    chunks[chunk_number - 1][total_bytes_received] = '\0'; // Null terminate
+                }
             }
 
             chunk_sizes[chunk_number - 1] = file_size;
