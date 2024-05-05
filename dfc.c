@@ -191,14 +191,26 @@ void put_file(const char *filename) {
     
     while (remaining_bytes > 0) {
         int bytes_to_read = chunk_sizes[chunk_index];
+
         chunks[chunk_index] = malloc((bytes_to_read + 1) * sizeof(char));
-        char buffer[bytes_to_read];
+        if (chunks[chunk_index] == NULL) {
+            fprintf(stderr, "Memory allocation failed for chunk %d.\n", chunk_index);
+            break;
+        }
+
+        // Dynamically allocate buffer (Needed for large file sizes to avoid stack overflow)
+        char *buffer = malloc(bytes_to_read * sizeof(char));
+        if (buffer == NULL) {
+            fprintf(stderr, "Memory allocation failed for buffer.\n");
+            break;
+        }
         fread(buffer, 1, bytes_to_read, file);
+
         printf("Chunk data size - %ld \n", sizeof(buffer));
         // printf("Buffer - %s\n", buffer);
         memcpy(chunks[chunk_index], buffer, bytes_to_read);
         chunks[chunk_index][bytes_to_read] = '\0';
-        memset(buffer, 0, sizeof(buffer));
+        free(buffer);
 
         remaining_bytes -= bytes_to_read;
         chunk_index++;

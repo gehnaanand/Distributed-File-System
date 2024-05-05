@@ -91,14 +91,14 @@ void receive_file_chunk(const char *server_name, int client_socket, const char *
             } else {
                 total_bytes_to_receive = MAX_CHUNK_SIZE;
             }
-            printf("Total bytes to receive - %d\n", total_bytes_to_receive);
+            // printf("Total bytes to receive - %d\n", total_bytes_to_receive);
             bytes_received = recv(client_socket, buffer, total_bytes_to_receive, 0);
             if (bytes_received <= 0) {
                 perror("Error receiving data");
                 return;
             }
             buffer[bytes_received] = '\0';
-            printf("Size of buffer - %ld\n", bytes_received);
+            // printf("Size of buffer - %ld\n", bytes_received);
             // printf("writing - %s\n", buffer);
             fwrite(buffer, 1, bytes_received, file);
             memset(buffer, 0, sizeof(buffer));
@@ -152,7 +152,9 @@ void send_file_chunk(const char *server_name, int client_socket, const char *fil
         if (entry->d_type == DT_REG) { // Check if it is a regular file
             char *name = entry->d_name;
             char prefix[MAX_PATH_LEN];
-            if (strncmp(name, filename, strlen(filename)) == 0) {
+            // printf("Entry - %s Filename - %s\n", entry->d_name, filename);
+            char *filename_without_ext = strtok(filename, ".");
+            if (strncmp(name, filename_without_ext, strlen(filename_without_ext)) == 0) {
                 printf("File - %s\n", name);
                 char filepath[MAX_PATH_LEN];
                 snprintf(filepath, MAX_PATH_LEN, "%s/%s", path, name);
@@ -269,7 +271,7 @@ void handle_client(int client_socket, const char *server_name) {
     if (bytes_received == 0) {
         printf("Client disconnected\n");
     } else {
-        perror("Receive failed");
+        // perror("Receive failed");
     }
 
     // close(client_socket);
